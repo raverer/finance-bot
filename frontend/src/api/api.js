@@ -1,4 +1,4 @@
-const BASE_URL = "https://web-production-d67d0.up.railway.app";
+const BASE_URL = "https://web-production-79d0d.up.railway.app/";
 
 export async function chat(message) {
   const res = await fetch(`${BASE_URL}/chat`, {
