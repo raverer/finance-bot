@@ -1,41 +1,31 @@
-import React, { useState } from "react";
-import { chat } from "./api/api";
+import React from "react";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import Navbar from "./components/Navbar";
+import Footer from "./components/Footer";
+
+import Home from "./pages/Home";
+import EMI from "./pages/EMI";
+import SIP from "./pages/SIP";
+import MutualFunds from "./pages/MutualFunds";
+import Chatbot from "./pages/Chatbot";
 
 function App() {
-  const [message, setMessage] = useState("");
-  const [response, setResponse] = useState("");
-
-  async function handleSend() {
-    const res = await chat(message);
-    setResponse(res.response || "");
-  }
-
   return (
-    <div style={{ padding: "40px", maxWidth: "600px", margin: "0 auto" }}>
-      <h1>Finance Bot</h1>
+    <Router>
+      <Navbar />
 
-      <textarea
-        rows="3"
-        style={{ width: "100%", padding: "10px" }}
-        placeholder="Ask something..."
-        value={message}
-        onChange={(e) => setMessage(e.target.value)}
-      />
+      <div className="content">
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/emi" element={<EMI />} />
+          <Route path="/sip" element={<SIP />} />
+          <Route path="/funds" element={<MutualFunds />} />
+          <Route path="/chat" element={<Chatbot />} />
+        </Routes>
+      </div>
 
-      <button
-        onClick={handleSend}
-        style={{ marginTop: "10px", padding: "10px 20px" }}
-      >
-        Send
-      </button>
-
-      {response && (
-        <div style={{ marginTop: "20px", padding: "15px", background: "#eee" }}>
-          <strong>Bot Reply:</strong>
-          <p>{response}</p>
-        </div>
-      )}
-    </div>
+      <Footer />
+    </Router>
   );
 }
 
