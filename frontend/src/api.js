@@ -1,4 +1,4 @@
-export const API_BASE = "https://<your-railway-url>.up.railway.app";
+export const API_BASE = "https://web-production-79d0d.up.railway.app";
 
 export async function chat(query) {
   const response = await fetch(`${API_BASE}/chat`, {
