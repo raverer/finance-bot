@@ -1,12 +1,12 @@
 // frontend/src/api/api.js
 
-const API_BASE = "web-production-79d0d.up.railway.app"; 
-// Replace with actual Railway URL
+// ✅ IMPORTANT: Use full Railway URL with https://
+const API_BASE = "https://web-production-79d0d.up.railway.app";
 
-// 🟢 Chat
+// ================= CHAT API =================
 export async function chatWithBot(message) {
   try {
-    const res = await fetch(`${API_BASE}/chat`, {
+    const res = await fetch(`${API_BASE}/chat/ask`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -15,35 +15,43 @@ export async function chatWithBot(message) {
     });
 
     const data = await res.json();
-    return data.response;
+
+    // Backend returns: { reply: "..." }
+    return data.reply;
   } catch (err) {
     console.error("Chat error:", err);
     return "Something went wrong.";
   }
 }
 
-// 🟢 EMI Calculator
+// ================= EMI API =================
 export async function calculateEMI(data) {
-  const res = await fetch(`${API_BASE}/emi/calculate`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(data),
-  });
+  try {
+    const res = await fetch(`${API_BASE}/emi/calculate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
 
-  return await res.json();
+    return await res.json();
+  } catch (err) {
+    console.error("EMI error:", err);
+    return { error: "Unable to calculate EMI" };
+  }
 }
 
-// 🟢 SIP Calculator
+// ================= SIP API =================
 export async function calculateSIP(data) {
-  const res = await fetch(`${API_BASE}/sip/calculate`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(data),
-  });
+  try {
+    const res = await fetch(`${API_BASE}/sip/calculate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
 
-  return await res.json();
+    return await res.json();
+  } catch (err) {
+    console.error("SIP error:", err);
+    return { error: "Unable to calculate SIP" };
+  }
 }
