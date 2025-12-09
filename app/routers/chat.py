@@ -4,8 +4,7 @@ from ..services.llm_groq import call_llm_groq
 
 router = APIRouter(
     prefix="/chat",
-    tags=["Chat / LLM"],
-    strict_slashes=False
+    tags=["Chat / LLM"]
 )
 # Force cloud LLM because Railway cannot run Ollama
 USE_OLLAMA = False  
