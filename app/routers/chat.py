@@ -1,27 +1,14 @@
 from fastapi import APIRouter, HTTPException
 from ..schemas import ChatRequest, ChatResponse
-
-# ============================================================
-#   SWITCH TOGGLE: Choose between OLLAMA (local) or GROQ (cloud)
-# ============================================================
-USE_OLLAMA = True   # ⬅️ Change to False when deploying online
-
-if USE_OLLAMA:
-    from ..services.llm_ollama import call_llm_ollama as call_llm
-else:
-    from ..services.llm_groq import call_llm_groq as call_llm
-
-# ============================================================
-#                   CHAT ROUTER
-# ============================================================
+from ..services.llm_groq import call_llm_groq
 
 router = APIRouter(prefix="/chat", tags=["Chat / LLM"])
 
+# Force cloud LLM because Railway cannot run Ollama
+USE_OLLAMA = False  
+
 
 def build_system_prompt(context_type: str) -> str:
-    """
-    Creates a context-aware system prompt for the finance assistant.
-    """
     base = (
         "You are NiveshBuddy, a helpful Indian personal finance assistant. "
         "You simplify EMIs, SIPs, budgeting, and investment basics. "
@@ -40,10 +27,6 @@ def build_system_prompt(context_type: str) -> str:
             " Focus on SIP investing, long-term planning, compounding, and "
             "understanding equity vs debt funds based on risk appetite."
         )
-    else:
-        base += (
-            " You may freely answer general finance queries as well."
-        )
 
     base += (
         " If the user provides numbers (salary, EMI, SIP, goals), explain the math clearly "
@@ -56,10 +39,13 @@ def build_system_prompt(context_type: str) -> str:
 @router.post("/", response_model=ChatResponse)
 def chat_with_assistant(payload: ChatRequest):
     """
-    Main chat endpoint.
-    Uses either Ollama (local) or Groq (cloud) depending on USE_OLLAMA flag.
+    POST /chat
+    Input:  { "message": "...", "context_type": "general" }
+    Output: { "reply": "..." }
     """
+
     try:
+        # Build the system instruction
         system_prompt = build_system_prompt(payload.context_type)
 
         messages = [
@@ -67,9 +53,13 @@ def chat_with_assistant(payload: ChatRequest):
             {"role": "user", "content": payload.message},
         ]
 
-        reply = call_llm(messages)
+        # ALWAYS use Groq on Railway
+        reply = call_llm_groq(messages)
+
+        if not reply:
+            raise ValueError("Empty response from LLM")
 
         return ChatResponse(reply=reply)
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
