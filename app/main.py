@@ -14,8 +14,7 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(
     title="Finance Bot Backend",
     description="EMI + Mutual Fund + Lead + SIP",
-    version="0.1.0",
-    strict_slashes=False
+    version="0.1.0"
 )
 
 # CORS (adjust origins when you build frontend)
