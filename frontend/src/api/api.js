@@ -6,12 +6,13 @@ const API_BASE = "https://web-production-79d0d.up.railway.app";
 // ================= CHAT API =================
 export async function chatWithBot(message) {
   try {
-    const res = await fetch(`${API_BASE}/chat`, { 
+    const res = await fetch(`${API_BASE}/chat`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ message }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message,
+        context_type: "general"       // <-- REQUIRED
+      }),
     });
 
     if (!res.ok) return "Server error. Please try again.";
@@ -19,10 +20,10 @@ export async function chatWithBot(message) {
     const data = await res.json();
     return data.reply;
   } catch (err) {
-    console.error("Chat error:", err);
     return "Network error. Please try again.";
   }
 }
+
 
 // ================= EMI API =================
 export async function calculateEMI(data) {
