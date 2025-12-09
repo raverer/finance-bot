@@ -1,6 +1,6 @@
 // frontend/src/api/api.js
 
-const API_BASE = "https://your-railway-backend-url"; 
+const API_BASE = "web-production-79d0d.up.railway.app"; 
 // Replace with actual Railway URL
 
 // 🟢 Chat
