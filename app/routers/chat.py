@@ -2,8 +2,11 @@ from fastapi import APIRouter, HTTPException
 from ..schemas import ChatRequest, ChatResponse
 from ..services.llm_groq import call_llm_groq
 
-router = APIRouter(prefix="/chat", tags=["Chat / LLM"])
-
+router = APIRouter(
+    prefix="/chat",
+    tags=["Chat / LLM"],
+    strict_slashes=False
+)
 # Force cloud LLM because Railway cannot run Ollama
 USE_OLLAMA = False  
 
