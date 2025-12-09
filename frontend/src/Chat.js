@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { chatWithBot } from "./api";
+import { chatWithBot } from "./api/api";
 
 function Chat() {
   const [input, setInput] = useState("");
