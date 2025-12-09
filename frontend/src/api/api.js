@@ -6,7 +6,7 @@ const API_BASE = "https://web-production-79d0d.up.railway.app";
 // ================= CHAT API =================
 export async function chatWithBot(message) {
   try {
-    const res = await fetch(`${API_BASE}/chat`, {
+    const res = await fetch(`${API_BASE}/chat`, { 
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -14,13 +14,13 @@ export async function chatWithBot(message) {
       body: JSON.stringify({ message }),
     });
 
-    const data = await res.json();
+    if (!res.ok) return "Server error. Please try again.";
 
-    // Backend returns: { reply: "..." } (FastAPI)
+    const data = await res.json();
     return data.reply;
   } catch (err) {
     console.error("Chat error:", err);
-    return "Server error. Please try again.";
+    return "Network error. Please try again.";
   }
 }
 
