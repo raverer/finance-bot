@@ -1,12 +1,12 @@
 // frontend/src/api/api.js
 
-// ✅ IMPORTANT: Use full Railway URL with https://
+// Railway backend base URL
 const API_BASE = "https://web-production-79d0d.up.railway.app";
 
 // ================= CHAT API =================
 export async function chatWithBot(message) {
   try {
-    const res = await fetch(`${API_BASE}/chat/ask`, {
+    const res = await fetch(`${API_BASE}/chat`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -16,11 +16,11 @@ export async function chatWithBot(message) {
 
     const data = await res.json();
 
-    // Backend returns: { reply: "..." }
+    // Backend returns: { reply: "..." } (FastAPI)
     return data.reply;
   } catch (err) {
     console.error("Chat error:", err);
-    return "Something went wrong.";
+    return "Server error. Please try again.";
   }
 }
 
