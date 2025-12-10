@@ -2,6 +2,7 @@ import os
 from groq import Groq
 
 API_KEY = os.getenv("GROQ_API_KEY")
+print("🔍 GROQ_API_KEY LOADED?:", API_KEY) 
 client = Groq(api_key=API_KEY)
 
 def call_llm_groq(messages):
