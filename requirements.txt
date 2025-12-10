@@ -8,3 +8,4 @@ python-dotenv
 httpx
 python-multipart
 rapidfuzz
+groq>=0.4.1
