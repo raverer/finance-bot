@@ -6,12 +6,12 @@ const API_BASE = "https://web-production-79d0d.up.railway.app";
 // ================= CHAT API =================
 export async function chatWithBot(message) {
   try {
-    const res = await fetch(`${API_BASE}/chat`, {
+    const res = await fetch(`${API_BASE}/chat/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         message,
-        context_type: "general"       // <-- REQUIRED
+        context_type: "general"
       }),
     });
 
@@ -20,6 +20,7 @@ export async function chatWithBot(message) {
     const data = await res.json();
     return data.reply;
   } catch (err) {
+    console.error("Frontend Fetch Error:", err);
     return "Network error. Please try again.";
   }
 }
