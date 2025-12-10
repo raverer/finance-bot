@@ -1,37 +1,20 @@
 import os
-import requests
+from groq import Groq
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+# Load API key
+GROQ_KEY = os.getenv("GROQ_API_KEY")
+client = Groq(api_key=GROQ_KEY)
 
 def call_llm_groq(messages):
-    """
-    Calls Groq LLM (LLaMA 3 or Mixtral) using ChatCompletion API.
-    """
-
-    if not GROQ_API_KEY:
-        raise ValueError("Missing GROQ_API_KEY environment variable.")
-
-    url = "https://api.groq.com/openai/v1/chat/completions"
-
-    payload = {
-        "model": "llama3-8b-8192",   # Or your preferred model
-        "messages": messages,
-        "temperature": 0.7,
-        "max_tokens": 300
-    }
-
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type": "application/json"
-    }
-
     try:
-        res = requests.post(url, json=payload, headers=headers, timeout=20)
-        data = res.json()
-
-        # Extract reply from Groq API
-        return data["choices"][0]["message"]["content"]
+        completion = client.chat.completions.create(
+            model="llama3-70b-8192",
+            messages=messages,
+            temperature=0.2,
+            max_tokens=300
+        )
+        return completion.choices[0].message["content"]
 
     except Exception as e:
-        print("Groq LLM Error:", e)
+        print("Groq Error:", e)
         return "I'm having trouble responding right now. Try again!"
