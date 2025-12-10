@@ -3,12 +3,13 @@ from ..schemas import ChatRequest, ChatResponse
 import json
 import os
 import requests
+import re
 
 # ============================================================
-#   GROQ (cloud LLM) – ONLY OPTION FOR RAILWAY
+#   ALWAYS USE GROQ ON RAILWAY
 # ============================================================
 
-USE_OLLAMA = False   # MUST remain False on Railway
+USE_OLLAMA = False
 
 if USE_OLLAMA:
     from ..services.llm_ollama import call_llm_ollama as call_llm
@@ -18,9 +19,8 @@ else:
 
 router = APIRouter(prefix="/chat", tags=["Chat / LLM"])
 
-# INTERNAL base URL to call our own APIs (SIP, EMI)
+# Internal base URL for calling EMI/SIP services FROM backend
 INTERNAL_BASE = os.getenv("INTERNAL_BASE_URL", "http://127.0.0.1:8000")
-
 
 # ============================================================
 #  SYSTEM PROMPTS
@@ -28,111 +28,153 @@ INTERNAL_BASE = os.getenv("INTERNAL_BASE_URL", "http://127.0.0.1:8000")
 
 def base_assistant_prompt() -> str:
     return (
-        "You are NiveshBuddy, a helpful Indian personal finance assistant. "
-        "You explain EMIs, loans, SIPs, and investments simply. "
-        "Avoid stock tips; you are NOT a SEBI-registered advisor."
+        "You are NiveshBuddy, a friendly Indian personal finance assistant. "
+        "You explain EMIs, SIPs, budgeting, and investment concepts in simple Hindi-English. "
+        "You are NOT a SEBI-registered advisor. Avoid stock tips. "
+        "When you get results from EMI or SIP calculation APIs, explain them clearly."
     )
 
 
 def intent_extraction_prompt() -> str:
     return (
         "You are a JSON parser for a finance chatbot.\n"
-        "Determine the user's intent and extract numbers.\n"
-        "Valid intents: 'emi', 'sip', 'general'.\n\n"
-
-        "Return STRICT JSON ONLY:\n"
+        "Extract user intent and numbers.\n\n"
+        "INTENTS:\n"
+        "- 'emi' → EMI calculation or loan query\n"
+        "- 'sip' → SIP / investment calculation\n"
+        "- 'general' → any other finance question\n\n"
+        "Extract numbers even if written as text like '5 lakh', '10%', '5 years'.\n\n"
+        "RETURN STRICT JSON ONLY:\n"
         "{\n"
-        '  "intent": "emi" | "sip" | "general",\n'
-        '  "loan_amount": float or null,\n'
-        '  "interest_rate": float or null,\n'
-        '  "tenure_years": float or null,\n'
-        '  "monthly_amount": float or null,\n'
-        '  "years": float or null,\n'
-        '  "expected_return": float or null,\n'
-        '  "scheme_name": string or null\n'
+        "  \"intent\": \"emi\" | \"sip\" | \"general\",\n"
+        "  \"loan_amount\": number or null,\n"
+        "  \"interest_rate\": number or null,\n"
+        "  \"tenure_years\": number or null,\n"
+        "  \"monthly_amount\": number or null,\n"
+        "  \"years\": number or null,\n"
+        "  \"expected_return\": number or null,\n"
+        "  \"scheme_name\": string or null\n"
         "}\n\n"
-        "If unsure → use null. If unrelated → intent should be 'general'."
+        "If unsure, return null for that field.\n"
+        "Make sure JSON is valid. No explanation outside JSON."
     )
 
 
 # ============================================================
-#  HELPERS
+#  NUMBER NORMALIZATION HELPERS
 # ============================================================
 
-def safe_float(v):
-    try:
-        return float(v) if v is not None else None
-    except:
+def safe_float(value):
+    if value is None:
         return None
 
+    if isinstance(value, (int, float)):
+        return float(value)
 
-def call_emi_api(parsed):
-    loan = safe_float(parsed.get("loan_amount"))
-    rate = safe_float(parsed.get("interest_rate"))
-    years = safe_float(parsed.get("tenure_years"))
+    if isinstance(value, str):
+        v = value.lower().strip()
+        v = v.replace("rs", "").replace("₹", "").replace(",", "")
 
-    if None in (loan, rate, years):
+        # lakh → 100,000
+        if "lakh" in v or "lac" in v:
+            num = re.findall(r"[\d\.]+", v)
+            return float(num[0]) * 100000 if num else None
+
+        # crore → 10,000,000
+        if "crore" in v:
+            num = re.findall(r"[\d\.]+", v)
+            return float(num[0]) * 10000000 if num else None
+
+        # Remove % sign
+        v = v.replace("%", "")
+
+        # Extract a normal number
+        nums = re.findall(r"[\d\.]+", v)
+        if nums:
+            return float(nums[0])
+
+    return None
+
+
+# ============================================================
+#  EMI API CALL
+# ============================================================
+
+def call_emi_api(parsed: dict):
+    loan_amount = safe_float(parsed.get("loan_amount"))
+    interest_rate = safe_float(parsed.get("interest_rate"))
+    tenure_years = safe_float(parsed.get("tenure_years"))
+
+    # All 3 required
+    if not (loan_amount and interest_rate and tenure_years):
         return None
 
     payload = {
-        "loan_amount": loan,
-        "annual_interest_rate": rate,
-        "tenure_years": years,
+        "loan_amount": loan_amount,
+        "annual_interest_rate": interest_rate,
+        "tenure_years": tenure_years,
     }
 
     try:
-        r = requests.post(f"{INTERNAL_BASE}/emi/calculate", json=payload, timeout=10)
-        r.raise_for_status()
-        return r.json()
+        res = requests.post(f"{INTERNAL_BASE}/emi/calculate", json=payload, timeout=20)
+        res.raise_for_status()
+        return res.json()
     except Exception as e:
         print("EMI API error:", e)
         return None
 
 
-def call_sip_api(parsed):
-    monthly = safe_float(parsed.get("monthly_amount"))
+# ============================================================
+#  SIP API CALL
+# ============================================================
+
+def call_sip_api(parsed: dict):
+    monthly_amount = safe_float(parsed.get("monthly_amount"))
     years = safe_float(parsed.get("years"))
-    expected = safe_float(parsed.get("expected_return"))
+    expected_return = safe_float(parsed.get("expected_return"))
     scheme_name = parsed.get("scheme_name")
 
-    if monthly is None or years is None:
+    if not (monthly_amount and years):
         return None
 
     payload = {
         "scheme_code": None,
         "scheme_name": scheme_name,
-        "monthly_amount": monthly,
+        "monthly_amount": monthly_amount,
         "years": years,
         "sip_day": 5,
-        "expected_return": expected if expected is not None else 12,
+        "expected_return": expected_return if expected_return else 12,
         "use_nav_history": True,
     }
 
     try:
-        r = requests.post(f"{INTERNAL_BASE}/sip/calculate", json=payload, timeout=20)
-        r.raise_for_status()
-        return r.json()
+        res = requests.post(f"{INTERNAL_BASE}/sip/calculate", json=payload, timeout=25)
+        res.raise_for_status()
+        return res.json()
     except Exception as e:
         print("SIP API error:", e)
         return None
 
 
-def run_intent_extraction(msg: str):
+# ============================================================
+#  INTENT EXTRACTION (FIRST LLM CALL)
+# ============================================================
+
+def run_intent_extraction(message: str):
     system_prompt = intent_extraction_prompt()
 
-    llm_raw = call_llm([
+    llm_reply = call_llm([
         {"role": "system", "content": system_prompt},
-        {"role": "user", "content": msg},
+        {"role": "user", "content": message},
     ])
 
     try:
-        parsed = json.loads(llm_raw)
+        parsed = json.loads(llm_reply)
         if "intent" not in parsed:
             raise ValueError("Missing intent")
         return parsed
-
     except Exception as e:
-        print("Intent parse error:", e, "LLM returned:", llm_raw)
+        print("Intent parse error:", e, llm_reply)
         return {
             "intent": "general",
             "loan_amount": None,
@@ -154,79 +196,80 @@ def chat_with_assistant(payload: ChatRequest):
     user_msg = payload.message
 
     try:
-        # Step 1 → intent + number extraction
         parsed = run_intent_extraction(user_msg)
-        intent = parsed["intent"]
+        intent = parsed.get("intent", "general")
 
-        # ------------------------------------------------------
-        #  EMI FLOW
-        # ------------------------------------------------------
+        # ========================
+        #        EMI LOGIC
+        # ========================
         if intent == "emi":
-            result = call_emi_api(parsed)
+            emi_data = call_emi_api(parsed)
 
-            if result is None:
-                # Not enough numbers → ask politely
-                ask = call_llm([
+            if emi_data:
+                explanation = call_llm([
                     {
                         "role": "system",
                         "content": base_assistant_prompt()
-                        + "User wants an EMI calculation. Ask for missing details: "
-                          "loan amount, annual interest %, and tenure in years."
+                        + "Explain this EMI calculation result in simple language:\n"
+                        f"{emi_data}\n"
+                        "Do NOT show raw JSON. Only explain cleanly.",
                     },
                     {"role": "user", "content": user_msg},
                 ])
-                return ChatResponse(reply=ask)
+                return ChatResponse(reply=explanation)
 
-            # We HAVE the EMI result → explain it
-            explain = call_llm([
+            # Not enough numbers → ask user
+            ask = call_llm([
                 {
                     "role": "system",
                     "content": base_assistant_prompt()
-                    + f"You have EMI calculation results here: {result}\n"
-                      "Explain these numbers clearly, simply, without showing raw JSON."
+                    + "User wants EMI calculation but hasn't given enough numbers. "
+                      "Ask them for loan amount, interest rate, and tenure.",
                 },
                 {"role": "user", "content": user_msg},
             ])
-            return ChatResponse(reply=explain)
+            return ChatResponse(reply=ask)
 
-        # ------------------------------------------------------
-        #  SIP FLOW
-        # ------------------------------------------------------
+        # ========================
+        #        SIP LOGIC
+        # ========================
         if intent == "sip":
-            result = call_sip_api(parsed)
+            sip_data = call_sip_api(parsed)
 
-            if result is None:
-                ask = call_llm([
+            if sip_data:
+                explanation = call_llm([
                     {
                         "role": "system",
                         "content": base_assistant_prompt()
-                        + "User wants a SIP calculation. Ask for monthly amount and years. "
-                          "Optionally ask for expected return %."
+                        + "Explain this SIP simulation result clearly:\n"
+                        f"{sip_data}\n"
+                        "Do NOT show the raw JSON.",
                     },
                     {"role": "user", "content": user_msg},
                 ])
-                return ChatResponse(reply=ask)
+                return ChatResponse(reply=explanation)
 
-            explain = call_llm([
+            # Not enough numbers → ask user
+            ask = call_llm([
                 {
                     "role": "system",
                     "content": base_assistant_prompt()
-                    + f"You have SIP results here: {result}\n"
-                      "Explain them simply without showing JSON. Include future value / invested amount summary."
+                    + "User wants SIP calculation but didn't give enough numbers. "
+                      "Ask for monthly amount, years, and expected return.",
                 },
                 {"role": "user", "content": user_msg},
             ])
-            return ChatResponse(reply=explain)
+            return ChatResponse(reply=ask)
 
-        # ------------------------------------------------------
-        #  GENERAL FINANCE CHAT
-        # ------------------------------------------------------
-        reply = call_llm([
+        # ========================
+        #   GENERAL FINANCE CHAT
+        # ========================
+        general_reply = call_llm([
             {"role": "system", "content": base_assistant_prompt()},
             {"role": "user", "content": user_msg},
         ])
-        return ChatResponse(reply=reply)
+        return ChatResponse(reply=general_reply)
 
     except Exception as e:
-        print("Chat error:", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        print("Chat Error:", e)
+        raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
