@@ -122,7 +122,11 @@ def call_emi_api(parsed: dict) -> Optional[dict]:
         return None
 
 
-def call_sip_api(parsed: dict) -> Optional[dict]:
+def call_sip_api(parsed: dict) -> dict | None:
+    """
+    Calls /sip/calculate automatically.
+    If expected return % is missing, assume 12% per year.
+    """
     monthly_amount = safe_float(parsed.get("monthly_amount"))
     years = safe_float(parsed.get("years"))
     expected_return = safe_float(parsed.get("expected_return"))
@@ -131,23 +135,32 @@ def call_sip_api(parsed: dict) -> Optional[dict]:
     if monthly_amount is None or years is None:
         return None  # not enough inputs
 
+    # 👉 Default return if user doesn’t specify
+    if expected_return is None:
+        expected_return = 12.0
+
     payload = {
         "scheme_code": None,
         "scheme_name": scheme_name,
         "monthly_amount": monthly_amount,
         "years": years,
         "sip_day": 5,
-        "expected_return": expected_return if expected_return is not None else 12.0,
+        "expected_return": expected_return,
         "use_nav_history": True,
     }
 
     try:
-        res = requests.post(f"{INTERNAL_BASE}/sip/calculate", json=payload, timeout=25)
+        res = requests.post(
+            f"{INTERNAL_BASE}/sip/calculate",
+            json=payload,
+            timeout=25,
+        )
         res.raise_for_status()
         return res.json()
     except Exception as e:
         print("SIP API error:", e)
         return None
+
 
 
 # ---------- Mutual Fund helpers (mfapi) ----------
