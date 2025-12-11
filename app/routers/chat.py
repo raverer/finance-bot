@@ -40,25 +40,27 @@ def base_assistant_prompt() -> str:
 def intent_extraction_prompt() -> str:
     return (
         "You are a JSON parser for a finance chatbot.\n"
-        "Extract user intent and numbers.\n\n"
-        "INTENTS:\n"
-        "- 'emi' → EMI calculation or loan query\n"
-        "- 'sip' → SIP / investment calculation\n"
-        "- 'general' → any other finance question\n\n"
-        "Extract numbers even if written as text like '5 lakh', '10%', '5 years'.\n\n"
-        "RETURN STRICT JSON ONLY:\n"
+        "Detect the user's intent even if numbers are missing.\n\n"
+        "Rules:\n"
+        "- If the user talks about SIP, investing monthly, mutual funds, income-based investing → intent = 'sip'.\n"
+        "- If the user talks about EMI, loan, interest rate, monthly payments → intent = 'emi'.\n"
+        "- Anything else → intent = 'general'.\n\n"
+        "Your job:\n"
+        "1) Detect intent.\n"
+        "2) Extract numbers ONLY if clearly provided.\n\n"
+        "Output strict JSON:\n"
         "{\n"
-        "  \"intent\": \"emi\" | \"sip\" | \"general\",\n"
-        "  \"loan_amount\": number or null,\n"
-        "  \"interest_rate\": number or null,\n"
-        "  \"tenure_years\": number or null,\n"
-        "  \"monthly_amount\": number or null,\n"
-        "  \"years\": number or null,\n"
-        "  \"expected_return\": number or null,\n"
-        "  \"scheme_name\": string or null\n"
+        '  \"intent\": \"emi\" | \"sip\" | \"general\",\n'
+        '  \"loan_amount\": float or null,\n'
+        '  \"interest_rate\": float or null,\n'
+        '  \"tenure_years\": float or null,\n'
+        '  \"monthly_amount\": float or null,\n'
+        '  \"years\": float or null,\n'
+        '  \"expected_return\": float or null,\n'
+        '  \"scheme_name\": string or null\n'
         "}\n\n"
-        "If unsure, return null for that field.\n"
-        "Make sure JSON is valid. No explanation outside JSON."
+        "If intent is 'sip' but no numbers are given, keep them null.\n"
+        "Return ONLY JSON. No explanation."
     )
 
 
