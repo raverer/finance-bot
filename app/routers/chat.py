@@ -43,29 +43,47 @@ def base_assistant_prompt() -> str:
 
 def intent_extraction_prompt() -> str:
     return (
-        "You are a JSON parser for a finance chatbot.\n"
-        "Your job is to:\n"
-        "1) Detect the user's intent.\n"
-        "2) Extract numeric parameters if present.\n\n"
+        "You are a natural-language financial intent extractor. "
+        "You read ANY user message and convert it into structured JSON.\n\n"
+
+        "Your tasks:\n"
+        "1. Detect intent (emi, sip, mf, or general).\n"
+        "2. Extract numbers from natural language.\n"
+        "3. Extract mutual fund names if mentioned.\n"
+        "4. Output STRICT JSON ONLY.\n\n"
+
         "Supported intents:\n"
-        "- 'emi'  -> user wants EMI calculation / loan analysis\n"
-        "- 'sip'  -> user wants SIP / monthly investing calculation\n"
-        "- 'mf'   -> user wants mutual fund recommendations (by income / risk / scheme name)\n"
-        "- 'general' -> any other finance question or explanation\n\n"
-        "Return STRICT JSON ONLY with this structure (no extra text):\n"
+        "- emi: loan EMI calculation, loan details, interest, tenure\n"
+        "- sip: monthly investment, compounding, future value\n"
+        "- mf: mutual fund advice, scheme questions, fund suggestions\n"
+        "- general: everything else\n\n"
+
+        "You MUST output JSON in this structure:\n"
         "{\n"
         '  \"intent\": \"emi\" | \"sip\" | \"mf\" | \"general\",\n'
-        '  \"loan_amount\": number or null,\n'
-        '  \"interest_rate\": number or null,            // annual %\n'
-        '  \"tenure_years\": number or null,\n'
-        '  \"monthly_amount\": number or null,\n'
-        '  \"years\": number or null,\n'
-        '  \"expected_return\": number or null,          // annual %\n'
+        '  \"loan_amount\": float or null,\n'
+        '  \"interest_rate\": float or null,\n'
+        '  \"tenure_years\": float or null,\n'
+        '  \"monthly_amount\": float or null,\n'
+        '  \"years\": float or null,\n'
+        '  \"expected_return\": float or null,\n'
         '  \"scheme_name\": string or null,\n'
-        '  \"income\": number or null\n'
+        '  \"income\": float or null\n'
         "}\n\n"
-        "If you are not sure about a value, use null.\n"
+
+        "Examples of what users may ask:\n"
+        "- \"How much EMI for 10 lakh at 8% for 10 years?\" → intent=emi\n"
+        "- \"I want to invest 5000 per month for 10 years\" → intent=sip\n"
+        "- \"Recommend SIPs for 50k income\" → intent=mf\n"
+        "- \"Tell me about Axis Bluechip fund\" → intent=mf\n\n"
+
+        "Rules:\n"
+        "- ALWAYS return English output only.\n"
+        "- If unsure about a number, put null.\n"
+        "- Mutual fund names MUST be copied exactly as user wrote.\n"
+        "- DO NOT include explanation, ONLY JSON.\n"
     )
+
 
 
 # ============================================================
