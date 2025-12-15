@@ -1,132 +1,97 @@
 from fastapi import APIRouter, HTTPException
 from ..schemas import ChatRequest, ChatResponse
-import os, json, requests
+import json
+import os
+import requests
 
-# ==============================
-# CONFIG
-# ==============================
+# ============================================================
+# USE GROQ ONLY (Railway compatible)
+# ============================================================
 
-USE_OLLAMA = False  # MUST be False on Railway
+from ..services.llm_groq import call_llm_groq as call_llm
 
-if USE_OLLAMA:
-    from ..services.llm_ollama import call_llm_ollama as call_llm
-else:
-    from ..services.llm_groq import call_llm_groq as call_llm
-
-router = APIRouter(prefix="/chat", tags=["Chat"])
+router = APIRouter(prefix="/chat", tags=["Chat / LLM"])
 
 INTERNAL_BASE = os.getenv("INTERNAL_BASE_URL", "http://127.0.0.1:8000")
 
-# ==============================
-# MUTUAL FUND MASTER LIST (OPTION B)
-# ==============================
+# ============================================================
+# SYSTEM PROMPTS
+# ============================================================
 
-MF_RECOMMENDATIONS = {
-    "large_cap": [
-        {"name": "Axis Bluechip Fund", "code": "120465"},
-        {"name": "Mirae Asset Large Cap Fund", "code": "118834"},
-    ],
-    "flexi_cap": [
-        {"name": "Parag Parikh Flexi Cap Fund", "code": "122639"},
-        {"name": "Kotak Flexicap Fund", "code": "118550"},
-    ],
-    "elss": [
-        {"name": "Mirae Asset Tax Saver Fund", "code": "125497"},
-        {"name": "Quant ELSS Tax Saver Fund", "code": "120847"},
-    ],
-    "index": [
-        {"name": "UTI Nifty 50 Index Fund", "code": "120716"},
-    ]
-}
+BASE_PROMPT = (
+    "You are NiveshBuddy, a modern Indian personal finance assistant. "
+    "You explain EMIs, SIPs, budgeting, and mutual funds in clear English. "
+    "You do NOT recommend specific mutual funds or stocks. "
+    "You suggest categories and allocation logic only. "
+    "Always assume Direct mutual fund plans. "
+    "Do not mention NAV values. "
+    "Add a short educational disclaimer once per response."
+)
 
-# ==============================
-# SYSTEM PROMPT (ENGLISH ONLY)
-# ==============================
+INTENT_PROMPT = (
+    "Extract user intent as JSON only.\n"
+    "Supported intents: emi, sip, mf_recommendation, general\n\n"
+    "Return format:\n"
+    "{\n"
+    '  "intent": "emi" | "sip" | "mf_recommendation" | "general",\n'
+    '  "income": number or null,\n'
+    '  "monthly_amount": number or null,\n'
+    '  "years": number or null\n'
+    "}"
+)
 
-def system_prompt():
-    return (
-        "You are NiveshBuddy, an Indian personal finance assistant. "
-        "Always respond in clear, simple English only. "
-        "You help users with SIPs, EMIs, budgeting, and mutual funds. "
-        "You are NOT a SEBI-registered advisor. Avoid stock tips or promises. "
-        "Be practical, friendly, and concise."
-    )
+# ============================================================
+# INTENT EXTRACTION
+# ============================================================
 
-# ==============================
-# HELPERS
-# ==============================
-
-def fetch_nav(scheme_code):
+def extract_intent(message: str):
     try:
-        res = requests.get(f"https://api.mfapi.in/mf/{scheme_code}", timeout=10)
-        data = res.json()
-        return data["data"][0]["nav"]
+        res = call_llm([
+            {"role": "system", "content": INTENT_PROMPT},
+            {"role": "user", "content": message},
+        ])
+        return json.loads(res)
     except:
-        return "N/A"
+        return {"intent": "general"}
 
-
-def suggest_sip_from_income(income):
-    if income < 30000:
-        return round(income * 0.07)
-    elif income <= 80000:
-        return round(income * 0.12)
-    else:
-        return round(income * 0.18)
-
-
-# ==============================
+# ============================================================
 # MAIN CHAT ENDPOINT
-# ==============================
+# ============================================================
 
 @router.post("/", response_model=ChatResponse)
 def chat(payload: ChatRequest):
-    user_msg = payload.message.lower()
-
     try:
-        # ---------- SIP FROM INCOME ----------
-        if "income" in user_msg and "sip" in user_msg:
-            income = int("".join(filter(str.isdigit, user_msg)))
-            sip_amount = suggest_sip_from_income(income)
+        user_msg = payload.message
+        parsed = extract_intent(user_msg)
+        intent = parsed.get("intent", "general")
 
-            fund_lines = []
-            for category, funds in MF_RECOMMENDATIONS.items():
-                fund = funds[0]
-                nav = fetch_nav(fund["code"])
-                fund_lines.append(f"- {fund['name']} (NAV ₹{nav})")
+        # ================= SIP BASED ON INCOME =================
+        if intent == "mf_recommendation" or intent == "sip":
+            income = parsed.get("income")
 
-            reply = (
-                f"Based on your monthly income of ₹{income}, a healthy SIP amount "
-                f"would be around ₹{sip_amount} per month.\n\n"
-                "Here are some good mutual fund options you can consider:\n"
-                + "\n".join(fund_lines) +
-                "\n\nYou can split your SIP across 2–3 funds and invest for at least 5–10 years."
-            )
-            return ChatResponse(reply=reply)
+            if income:
+                sip_amount = round(income * 0.12)
 
-        # ---------- EMI ----------
-        if "emi" in user_msg:
-            res = requests.post(
-                f"{INTERNAL_BASE}/emi/calculate",
-                json=payload.dict(),
-                timeout=15
-            )
-            return ChatResponse(reply=str(res.json()))
+                reply = (
+                    f"Based on a monthly income of ₹{income:,}, "
+                    f"a healthy SIP amount would be around ₹{sip_amount:,} "
+                    f"(approximately 10–15% of income).\n\n"
+                    "You may consider Direct mutual fund plans across these categories:\n\n"
+                    "• A Flexi Cap fund for long-term growth\n"
+                    "• A Nifty 50 Index fund for stability\n"
+                    "• An ELSS fund if you want tax benefits under Section 80C\n\n"
+                    "A long-term horizon of 5–10 years works best for SIP investing.\n\n"
+                    "Note: This is for educational purposes only and not investment advice."
+                )
+                return ChatResponse(reply=reply)
 
-        # ---------- SIP CALC ----------
-        if "sip" in user_msg and any(char.isdigit() for char in user_msg):
-            res = requests.post(
-                f"{INTERNAL_BASE}/sip/calculate",
-                json=payload.dict(),
-                timeout=15
-            )
-            return ChatResponse(reply=str(res.json()))
-
-        # ---------- GENERAL CHAT ----------
-        llm_reply = call_llm([
-            {"role": "system", "content": system_prompt()},
-            {"role": "user", "content": payload.message}
+        # ================= GENERAL FINANCE =================
+        reply = call_llm([
+            {"role": "system", "content": BASE_PROMPT},
+            {"role": "user", "content": user_msg},
         ])
-        return ChatResponse(reply=llm_reply)
+
+        return ChatResponse(reply=reply)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
