@@ -2,16 +2,21 @@ import React from "react";
 import Chat from "./Chat";
 import "./styles.css";
 
-<header className="app-header">
-  <h1>NiveshBuddy – Your AI Finance Partner</h1>
-  <p className="subtitle">Smart EMI, SIP & Mutual Fund guidance for India</p>
-</header>
-
 function App() {
   return (
     <div className="app-container">
-      <h1 className="title">Finance Bot</h1>
+      <header className="app-header">
+        <h1>NiveshBuddy</h1>
+        <p>
+          AI-powered personal finance assistant for SIPs, EMIs & mutual funds
+        </p>
+      </header>
+
       <Chat />
+
+      <footer className="app-footer">
+        Educational purpose only • Not SEBI registered • India 🇮🇳
+      </footer>
     </div>
   );
 }
